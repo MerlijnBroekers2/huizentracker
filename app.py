@@ -148,7 +148,6 @@ def afgevallen_sort_key(status):
 # -----------------------------
 # PAGE 1 — Nieuwe huizen
 # -----------------------------
-
 def page_new_houses():
     houses = supabase.table("houses") \
         .select("*") \
@@ -169,26 +168,25 @@ def page_new_houses():
         st.subheader(house["address"])
         st.write(f"💰 € {house['price']}")
         st.write(f"📏 {house['surface_m2']} m² · {house['bedrooms']} slaapkamers")
-
         st.markdown(f"[🔗 Bekijk op Funda]({house['url']})")
 
-        # POST style form
-        with st.form(key=f"form_{house['id']}"):
-            current_index = STATUS_OPTIONS_NEW.index(house["status"]) \
-                if house["status"] in STATUS_OPTIONS_NEW else 0
+        # Status buttons below the card
+        st.markdown("**Status wijzigen:**")
 
-            new_status = st.selectbox(
-                "Status wijzigen",
-                STATUS_OPTIONS_NEW,
-                index=current_index
-            )
-
-            submitted = st.form_submit_button("Opslaan")
-
-            if submitted and new_status != house["status"]:
-                update_status(house["id"], new_status)
-                st.success("Status bijgewerkt!")
+        cols = st.columns(3, gap="small")
+        for col, status in zip(cols, STATUS_OPTIONS_NEW):
+            if col.button(
+                status,
+                key=f"{house['id']}_{status}",
+                help=f"Klik om status te wijzigen naar '{status}'",
+                use_container_width=True
+            ):
+                update_status(house["id"], status)
+                st.toast(f"✅ Status bijgewerkt naar '{status}'", icon="✅")
                 st.rerun()
+
+        # Add some spacing below each card
+        st.write("")  # simple line break
 
 
 # -----------------------------
