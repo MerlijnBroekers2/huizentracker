@@ -83,18 +83,19 @@ def main():
     new_count = 0
 
     for i, listing in enumerate(listings):
-        print(f"Listing number {i}: {listing['title']} ({listing.get('postcode')})")
-
-        if not is_within_ring(listing.get("postcode", "")):
-            print("Filtered: Not within ring")
-            continue
-
         listing_id = f"pararius_{listing.id}"
         if listing_id in existing_ids:
-            print("Filtered: Already exists in database")
+            print(f"Listing number {i}: {listing['title']} — skipping, already exists")
             continue
 
-        house_data = transform_listing(listing)
+        print(f"Listing number {i}: {listing['title']} — fetching full details...")
+        full = pararius.get_listing(listing["url"])
+
+        if not is_within_ring(full.get("postcode", "")):
+            print(f"Filtered: Not within ring ({full.get('postcode')})")
+            continue
+
+        house_data = transform_listing(full)
         print("Inserting new house:", house_data)
         supabase.table("houses").insert(house_data).execute()
         new_count += 1
