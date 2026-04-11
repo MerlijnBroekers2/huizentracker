@@ -17,6 +17,7 @@ LOCATION = "amsterdam"
 PRICE_MIN = 1000
 PRICE_MAX = 4000
 AREA_MIN = 60
+BEDROOMS_MIN = 3
 MAX_PAGES = 2
 ALLOWED_POSTCODES = {
     *range(1011, 1020),  # centrum/aan IJ: 1011–1019
@@ -40,6 +41,7 @@ def fetch_pararius_listings():
             price_min=PRICE_MIN,
             price_max=PRICE_MAX,
             area_min=AREA_MIN,
+            bedrooms=BEDROOMS_MIN,
             sort="newest",
             page=page,
         )
@@ -64,7 +66,7 @@ def transform_listing(listing) -> dict:
         "neighbourhood": listing.get("neighbourhood"),
         "city": listing.get("city"),
         "price": listing.get("price"),
-        "surface_m2": listing.get("living_area"),
+        "surface_m2": listing.get("area"),
         "bedrooms": listing.get("bedrooms"),
         "url": listing["url"],
         "status": "nieuw",
@@ -82,10 +84,6 @@ def main():
 
     for i, listing in enumerate(listings):
         print(f"Listing number {i}: {listing['title']} ({listing.get('postcode')})")
-
-        if (listing.get("living_area") or 0) < AREA_MIN:
-            print("Filtered: Living area too small")
-            continue
 
         if not is_within_ring(listing.get("postcode", "")):
             print("Filtered: Not within ring")

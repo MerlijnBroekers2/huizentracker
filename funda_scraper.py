@@ -19,6 +19,7 @@ OFFERING_TYPE="rent"
 PRICE_MAX=4000
 PRICE_MIN=1000
 AREA_MIN=60
+BEDROOMS_MIN=3
 AREA_MAX=None
 PLOT_MIN=None
 PLOT_MAX=None
@@ -145,6 +146,11 @@ def main():
         if listing["living_area"] < AREA_MIN:
             print("Filtered: Living area too small")
             print(listing["living_area"])
+            continue
+
+        if (listing.get("bedrooms") or 0) < BEDROOMS_MIN:
+            print("Filtered: Not enough bedrooms")
+            print(listing.get("bedrooms"))
             continue
 
         if not is_within_ring(listing['postcode'], ALLOWED_POSTCODES):
