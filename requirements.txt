@@ -2,4 +2,5 @@ streamlit
 supabase
 python-dotenv
 pyfunda
+pypararius
 datetime

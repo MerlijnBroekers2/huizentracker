@@ -1,4 +1,4 @@
-name: Funda Scraper
+name: Pararius Scraper
 
 on:
   schedule:
@@ -27,4 +27,4 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: |
-          python funda_scraper.py
+          python pararius_scraper.py
