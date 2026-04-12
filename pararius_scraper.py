@@ -1,7 +1,10 @@
 import os
+import time
 from supabase import create_client
 from dotenv import load_dotenv
 from pypararius import Pararius
+from geopy.geocoders import Nominatim
+from geopy.exc import GeocoderTimedOut, GeocoderRateLimited
 
 load_dotenv()
 
@@ -26,6 +29,22 @@ ALLOWED_POSTCODES = {
     *range(1091, 1095),  # oost:            1091–1094
     *range(1096, 1099),  # oost:            1096–1098
 }
+
+
+_geolocator = Nominatim(user_agent="huizentracker-scraper")
+
+def geocode_postcode(postcode: str):
+    """Return (lat, lng) or (None, None). Includes 1s sleep for Nominatim rate limit."""
+    if not postcode:
+        return None, None
+    try:
+        time.sleep(1)
+        location = _geolocator.geocode(f"{postcode}, Amsterdam, Netherlands", timeout=10)
+        if location:
+            return location.latitude, location.longitude
+    except (GeocoderTimedOut, GeocoderRateLimited) as e:
+        print(f"Geocoding error for {postcode}: {e}")
+    return None, None
 
 
 def get_existing_ids():
@@ -60,6 +79,8 @@ def is_within_ring(postal_code: str) -> bool:
 
 
 def transform_listing(listing) -> dict:
+    postcode = listing.get("postcode")
+    lat, lng = geocode_postcode(postcode)
     return {
         "id": f"pararius_{listing.id}",
         "address": listing["title"],
@@ -69,7 +90,9 @@ def transform_listing(listing) -> dict:
         "surface_m2": listing.get("area"),
         "bedrooms": listing.get("bedrooms"),
         "url": listing["url"],
-        "postcode": listing.get("postcode"),
+        "postcode": postcode,
+        "lat": lat,
+        "lng": lng,
         "status": "nieuw",
     }
 

@@ -8,8 +8,6 @@ import math
 import io
 from staticmap import StaticMap, CircleMarker
 from PIL import ImageDraw, ImageFont
-from geopy.geocoders import Nominatim
-from geopy.exc import GeocoderTimedOut
 
 st.set_page_config(layout="wide")
 
@@ -164,20 +162,6 @@ def afgevallen_sort_key(status):
     }
     return priority.get(status, 99)
 
-@st.cache_data(ttl=86400)
-def geocode_postcode(postcode: str):
-    """Return (lat, lng) for a Dutch postcode, or None if not found."""
-    if not postcode:
-        return None
-    try:
-        geolocator = Nominatim(user_agent="huizentracker")
-        location = geolocator.geocode(f"{postcode}, Amsterdam, Netherlands", timeout=5)
-        if location:
-            return (location.latitude, location.longitude)
-        return None
-    except GeocoderTimedOut:
-        return None
-
 def _lonlat_to_pixel(lng, lat, width, height, tile_size=256):
     """Convert lng/lat to pixel coordinates on the fixed Amsterdam map."""
     def to_tile(lon, lat_deg, z):
@@ -297,12 +281,9 @@ def page_overview():
         if map_expander:
             mini_pins = []
             for house in data:
-                if not house.get("postcode"):
+                lat, lng = house.get("lat"), house.get("lng")
+                if not lat or not lng:
                     continue
-                coords = geocode_postcode(house["postcode"])
-                if not coords:
-                    continue
-                lat, lng = coords
                 num = len(mini_pins) + 1
                 is_archived = house.get("status") in ARCHIVE_STATUSES
                 color = "#9CA3AF" if is_archived else status_color(house.get("status", ""))
@@ -491,12 +472,9 @@ def page_kaart():
     pin_data = []
     legend_rows = []
     for house in filtered:
-        if not house.get("postcode"):
+        lat, lng = house.get("lat"), house.get("lng")
+        if not lat or not lng:
             continue
-        coords = geocode_postcode(house["postcode"])
-        if not coords:
-            continue
-        lat, lng = coords
         num = len(pin_data) + 1
         is_archived = house.get("status") in ARCHIVE_STATUSES
         color = "#9CA3AF" if is_archived else status_color(house.get("status", ""))
@@ -510,7 +488,7 @@ def page_kaart():
             "Link": house.get("url", ""),
         })
 
-    count_total = len([h for h in houses if h.get("postcode")])
+    count_total = len([h for h in houses if h.get("lat")])
     st.caption(f"{len(pin_data)} van {count_total} huizen met postcode zichtbaar")
 
     if pin_data:
