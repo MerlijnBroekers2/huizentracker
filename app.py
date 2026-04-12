@@ -92,6 +92,15 @@ STATUS_OPTIONS_NEW = [
 
 ARCHIVE_STATUSES = {"niet geïnteresseerd", "niet geboden", "bod niet geaccepteerd"}
 
+STATUS_GROUPS = {
+    "✨ Potentials": ["potential"],
+    "👀 Bezichtiging": ["bezichtiging gepland", "bericht gestuurd"],
+    "🤔 To bied or not": ["bezichtiging geweest"],
+    "💰 Bieden": ["bod gedaan"],
+    "🏆 JAVA PALACE": ["bod geaccepteerd"],
+    "📦 Archief": list(ARCHIVE_STATUSES),
+}
+
 
 # -----------------------------
 # HELPERS
@@ -437,7 +446,42 @@ def page_overview():
                 #     key=f"kanban_{house['id']}",
                 #     label_visibility="collapsed"
                 # )
-                
+
+
+def page_kaart():
+    st.title("🗺️ Kaart")
+
+    houses = get_all_houses()
+
+    if not houses:
+        st.info("Geen huizen beschikbaar.")
+        return
+
+    # ---- Sidebar filters ----
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("**Filters**")
+
+    selected_groups = st.sidebar.multiselect(
+        "Status groepen",
+        options=list(STATUS_GROUPS.keys()),
+        default=list(STATUS_GROUPS.keys()),
+    )
+
+    # Collect all statuses belonging to selected groups
+    selected_statuses = set()
+    for group in selected_groups:
+        selected_statuses.update(STATUS_GROUPS[group])
+
+    filtered = [h for h in houses if h.get("status") in selected_statuses]
+
+    count_shown = len([h for h in filtered if h.get("postcode")])
+    count_total = len([h for h in houses if h.get("postcode")])
+    st.caption(f"{count_shown} van {count_total} huizen met postcode zichtbaar")
+
+    m = render_map(filtered, height=600)
+    st_folium(m, use_container_width=True, height=600)
+
+
 def page_archief():
     data = get_all_houses()
     
