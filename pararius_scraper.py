@@ -38,7 +38,7 @@ def geocode_postcode(postcode: str):
     if not postcode:
         return None, None
     try:
-        time.sleep(1)
+        time.sleep(2)
         location = _geolocator.geocode(f"{postcode}, Amsterdam, Netherlands", timeout=10)
         if location:
             return location.latitude, location.longitude
