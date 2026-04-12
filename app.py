@@ -294,6 +294,10 @@ def page_overview():
         st.info("Geen data beschikbaar.")
         return
 
+    with st.expander("🗺️ Kaart overzicht", expanded=False):
+        mini_map = render_map(data, height=350)
+        st_folium(mini_map, use_container_width=True, height=350)
+
     df = pd.DataFrame(data)
 
     kanban_columns = {
