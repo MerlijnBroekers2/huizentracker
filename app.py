@@ -7,6 +7,10 @@ from supabase import create_client
 from dotenv import load_dotenv
 from datetime import datetime
 import streamlit.components.v1 as components
+import folium
+from streamlit_folium import st_folium
+from geopy.geocoders import Nominatim
+from geopy.exc import GeocoderTimedOut
 
 st.set_page_config(layout="wide")
 
@@ -144,6 +148,20 @@ def afgevallen_sort_key(status):
         "niet geïnteresseerd": 3,
     }
     return priority.get(status, 99)
+
+@st.cache_data(ttl=86400)
+def geocode_postcode(postcode: str):
+    """Return (lat, lng) for a Dutch postcode, or None if not found."""
+    if not postcode:
+        return None
+    try:
+        geolocator = Nominatim(user_agent="huizentracker")
+        location = geolocator.geocode(f"{postcode}, Amsterdam, Netherlands", timeout=5)
+        if location:
+            return (location.latitude, location.longitude)
+        return None
+    except GeocoderTimedOut:
+        return None
 
 # -----------------------------
 # PAGE 1 — Nieuwe huizen
