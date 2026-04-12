@@ -187,7 +187,7 @@ def main():
         #     print("Status:", listing.get("status", ""))
         #     continue
 
-        if listing.getID() in existing_ids:
+        if f"funda_{listing.getID()}" in existing_ids:
             print("Filtered: Already exists in database")
             continue
 
