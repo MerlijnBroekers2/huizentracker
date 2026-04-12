@@ -481,12 +481,13 @@ def page_kaart():
         color = "#9CA3AF" if is_archived else status_color(house.get("status", ""))
         pin_data.append((num, lat, lng, color))
         legend_rows.append({
-            "#": num,
-            "Adres": house.get("address", ""),
-            "Status": house.get("status", ""),
-            "Prijs": f"€ {house.get('price', '')}",
-            "m²": str(house.get("surface_m2", "")),
-            "Link": house.get("url", ""),
+            "num": num,
+            "id": house.get("id"),
+            "address": house.get("address", ""),
+            "status": house.get("status", ""),
+            "price": f"€ {house.get('price', '')}",
+            "m2": str(house.get("surface_m2", "")),
+            "url": house.get("url", ""),
         })
 
     count_total = len([h for h in houses if h.get("lat")])
@@ -500,13 +501,32 @@ def page_kaart():
 
     if legend_rows:
         st.markdown("### Legenda")
-        df_legend = pd.DataFrame(legend_rows)
-        st.dataframe(
-            df_legend,
-            column_config={"Link": st.column_config.LinkColumn("Link")},
-            hide_index=True,
-            use_container_width=True,
-        )
+        header = st.columns([0.4, 2.5, 2, 1.2, 0.8, 0.5])
+        header[0].markdown("**#**")
+        header[1].markdown("**Adres**")
+        header[2].markdown("**Status**")
+        header[3].markdown("**Prijs**")
+        header[4].markdown("**m²**")
+        header[5].markdown("**Link**")
+        st.divider()
+        for row in legend_rows:
+            cols = st.columns([0.4, 2.5, 2, 1.2, 0.8, 0.5])
+            cols[0].markdown(f"**{row['num']}**")
+            cols[1].write(row["address"])
+            new_status = cols[2].selectbox(
+                "",
+                STATUS_OPTIONS,
+                index=STATUS_OPTIONS.index(row["status"]),
+                key=f"map_legend_{row['id']}",
+                label_visibility="collapsed",
+            )
+            if new_status != row["status"]:
+                update_status(row["id"], new_status)
+                st.cache_data.clear()
+                st.rerun()
+            cols[3].write(row["price"])
+            cols[4].write(row["m2"])
+            cols[5].markdown(f"[→]({row['url']})")
 
 
 def page_archief():
