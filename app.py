@@ -4,8 +4,10 @@ import pandas as pd
 from supabase import create_client
 from dotenv import load_dotenv
 from datetime import datetime
-import folium
-from streamlit_folium import st_folium
+import math
+import io
+from staticmap import StaticMap, CircleMarker
+from PIL import ImageDraw, ImageFont
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut
 
@@ -88,6 +90,10 @@ STATUS_OPTIONS_NEW = [
 ]
 
 ARCHIVE_STATUSES = {"niet geïnteresseerd", "niet geboden", "bod niet geaccepteerd"}
+
+MAP_CENTER_LNG = 4.9041
+MAP_CENTER_LAT = 52.3676
+MAP_ZOOM = 13
 
 STATUS_GROUPS = {
     "✨ Potentials": ["potential"],
@@ -172,58 +178,53 @@ def geocode_postcode(postcode: str):
     except GeocoderTimedOut:
         return None
 
-def render_map(houses: list[dict], height: int = 600):
-    """Build and return a Folium map with all geocoded houses as pins."""
-    m = folium.Map(
-        location=[52.3676, 4.9041],
-        zoom_start=13,
-        tiles="OpenStreetMap"
-    )
+def _lonlat_to_pixel(lng, lat, width, height, tile_size=256):
+    """Convert lng/lat to pixel coordinates on the fixed Amsterdam map."""
+    def to_tile(lon, lat_deg, z):
+        x = (lon + 180) / 360 * (2 ** z)
+        lat_r = math.radians(lat_deg)
+        y = (1 - math.log(math.tan(lat_r) + 1 / math.cos(lat_r)) / math.pi) / 2 * (2 ** z)
+        return x, y
 
-    for house in houses:
-        coords = geocode_postcode(house.get("postcode"))
-        if not coords:
-            continue
+    cx, cy = to_tile(MAP_CENTER_LNG, MAP_CENTER_LAT, MAP_ZOOM)
+    tx, ty = to_tile(lng, lat, MAP_ZOOM)
+    px = int((tx - cx) * tile_size + width / 2)
+    py = int((ty - cy) * tile_size + height / 2)
+    return px, py
 
-        is_archived = house.get("status") in ARCHIVE_STATUSES
-        color = "#9CA3AF" if is_archived else status_color(house.get("status", ""))
-        radius = 6 if is_archived else 10
 
-        popup_html = f"""
-        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-width:200px;">
-            <div style="font-size:15px;font-weight:600;margin-bottom:6px;">{house.get("address","")}</div>
-            <div style="font-size:12px;color:#555;margin-bottom:8px;">
-                {house.get("neighbourhood") or ""}{" · " if house.get("neighbourhood") else ""}{house.get("city","Amsterdam")}
-            </div>
-            <div style="font-size:13px;margin-bottom:8px;">
-                💰 € {house.get("price","")} · 📏 {house.get("surface_m2","?")} m² · {house.get("bedrooms","?")} slpk
-            </div>
-            <span style="
-                background:{color};
-                color:{'#fff' if is_archived else '#000'};
-                font-size:11px;font-weight:600;
-                padding:3px 8px;border-radius:6px;
-                display:inline-block;margin-bottom:10px;
-            ">{house.get("status","")}</span><br>
-            <a href="{house.get("url","")}" target="_blank"
-               style="font-size:13px;color:#2563EB;text-decoration:none;">
-                Bekijk listing →
-            </a>
-        </div>
-        """
+@st.cache_data(ttl=300)
+def render_static_map(pin_data, width=1400, height=850, show_numbers=True):
+    """
+    Render a static PNG map with colored pins.
+    pin_data: tuple of (num, lat, lng, color) — must be a tuple for caching.
+    Returns PNG bytes.
+    """
+    m = StaticMap(width, height)
+    for num, lat, lng, color in pin_data:
+        m.add_marker(CircleMarker((lng, lat), color, 22))
 
-        folium.CircleMarker(
-            location=coords,
-            radius=radius,
-            color=color,
-            fill=True,
-            fill_color=color,
-            fill_opacity=0.85 if not is_archived else 0.4,
-            popup=folium.Popup(popup_html, max_width=280),
-            tooltip=house.get("address", ""),
-        ).add_to(m)
+    image = m.render(zoom=MAP_ZOOM, center=[MAP_CENTER_LNG, MAP_CENTER_LAT])
+    draw = ImageDraw.Draw(image)
 
-    return m
+    try:
+        font = ImageFont.load_default(size=11)
+    except TypeError:
+        font = ImageFont.load_default()
+
+    for num, lat, lng, color in pin_data:
+        px, py = _lonlat_to_pixel(lng, lat, width, height)
+        r = 11
+        draw.ellipse([px - r, py - r, px + r, py + r], fill="white", outline=color, width=2)
+        if show_numbers:
+            label = str(num)
+            bbox = draw.textbbox((0, 0), label, font=font)
+            tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+            draw.text((px - tw // 2, py - th // 2), label, fill="#111827", font=font)
+
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    return buf.getvalue()
 
 # -----------------------------
 # PAGE 1 — Nieuwe huizen
@@ -294,8 +295,21 @@ def page_overview():
 
     with st.expander("🗺️ Kaart overzicht", expanded=False) as map_expander:
         if map_expander:
-            mini_map = render_map(data, height=350)
-            st_folium(mini_map, use_container_width=True, height=350, returned_objects=[])
+            mini_pins = []
+            for house in data:
+                if not house.get("postcode"):
+                    continue
+                coords = geocode_postcode(house["postcode"])
+                if not coords:
+                    continue
+                lat, lng = coords
+                num = len(mini_pins) + 1
+                is_archived = house.get("status") in ARCHIVE_STATUSES
+                color = "#9CA3AF" if is_archived else status_color(house.get("status", ""))
+                mini_pins.append((num, lat, lng, color))
+            if mini_pins:
+                img_bytes = render_static_map(tuple(mini_pins), width=1000, height=500, show_numbers=False)
+                st.image(img_bytes, use_container_width=True)
 
     df = pd.DataFrame(data)
 
@@ -455,7 +469,6 @@ def page_kaart():
     st.title("🗺️ Kaart")
 
     houses = get_all_houses()
-
     if not houses:
         st.info("Geen huizen beschikbaar.")
         return
@@ -463,26 +476,58 @@ def page_kaart():
     # ---- Sidebar filters ----
     st.sidebar.markdown("---")
     st.sidebar.markdown("**Filters**")
-
     selected_groups = st.sidebar.multiselect(
         "Status groepen",
         options=list(STATUS_GROUPS.keys()),
         default=list(STATUS_GROUPS.keys()),
     )
-
-    # Collect all statuses belonging to selected groups
     selected_statuses = set()
     for group in selected_groups:
         selected_statuses.update(STATUS_GROUPS[group])
 
     filtered = [h for h in houses if h.get("status") in selected_statuses]
 
-    count_shown = len([h for h in filtered if h.get("postcode")])
-    count_total = len([h for h in houses if h.get("postcode")])
-    st.caption(f"{count_shown} van {count_total} huizen met postcode zichtbaar")
+    # Build numbered pin list + legend
+    pin_data = []
+    legend_rows = []
+    for house in filtered:
+        if not house.get("postcode"):
+            continue
+        coords = geocode_postcode(house["postcode"])
+        if not coords:
+            continue
+        lat, lng = coords
+        num = len(pin_data) + 1
+        is_archived = house.get("status") in ARCHIVE_STATUSES
+        color = "#9CA3AF" if is_archived else status_color(house.get("status", ""))
+        pin_data.append((num, lat, lng, color))
+        legend_rows.append({
+            "#": num,
+            "Adres": house.get("address", ""),
+            "Status": house.get("status", ""),
+            "Prijs": f"€ {house.get('price', '')}",
+            "m²": str(house.get("surface_m2", "")),
+            "Link": house.get("url", ""),
+        })
 
-    m = render_map(filtered, height=600)
-    st_folium(m, use_container_width=True, height=600, returned_objects=[])
+    count_total = len([h for h in houses if h.get("postcode")])
+    st.caption(f"{len(pin_data)} van {count_total} huizen met postcode zichtbaar")
+
+    if pin_data:
+        img_bytes = render_static_map(tuple(pin_data), width=1400, height=900)
+        st.image(img_bytes, use_container_width=True)
+    else:
+        st.info("Geen huizen met postcode gevonden voor de geselecteerde filters.")
+
+    if legend_rows:
+        st.markdown("### Legenda")
+        df_legend = pd.DataFrame(legend_rows)
+        st.dataframe(
+            df_legend,
+            column_config={"Link": st.column_config.LinkColumn("Link")},
+            hide_index=True,
+            use_container_width=True,
+        )
 
 
 def page_archief():
