@@ -57,11 +57,13 @@ def send_new_listings_email(new_houses: list[dict], source: str):
     </body></html>
     """
 
-    resend.Emails.send({
-        "from": "Rental Tracker <onboarding@resend.dev>",
-        "to": email_to,
-        "subject": subject,
-        "html": html,
-    })
-
-    print(f"Email sent to {email_to} with {len(new_houses)} new listing(s).")
+    try:
+        resend.Emails.send({
+            "from": "Rental Tracker <onboarding@resend.dev>",
+            "to": email_to,
+            "subject": subject,
+            "html": html,
+        })
+        print(f"Email sent to {email_to} with {len(new_houses)} new listing(s).")
+    except Exception as e:
+        print(f"Failed to send email: {e}")
