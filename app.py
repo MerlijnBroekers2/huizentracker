@@ -4,7 +4,6 @@ import pandas as pd
 from supabase import create_client
 from dotenv import load_dotenv
 from datetime import datetime
-import streamlit.components.v1 as components
 import folium
 from streamlit_folium import st_folium
 from geopy.geocoders import Nominatim
@@ -113,6 +112,7 @@ def update_status(house_id, new_status):
     ).eq("id", house_id).execute()
 
 
+@st.cache_data(ttl=30)
 def get_all_houses():
     return supabase.table("houses").select("*").execute().data
 
@@ -292,9 +292,10 @@ def page_overview():
         st.info("Geen data beschikbaar.")
         return
 
-    with st.expander("🗺️ Kaart overzicht", expanded=False):
-        mini_map = render_map(data, height=350)
-        st_folium(mini_map, use_container_width=True, height=350)
+    with st.expander("🗺️ Kaart overzicht", expanded=False) as map_expander:
+        if map_expander:
+            mini_map = render_map(data, height=350)
+            st_folium(mini_map, use_container_width=True, height=350, returned_objects=[])
 
     df = pd.DataFrame(data)
 
@@ -406,7 +407,7 @@ def page_overview():
                 </a>
                 """
 
-                components.html(card_html, height=140, scrolling=False)
+                st.markdown(card_html, unsafe_allow_html=True)
 
                 # ---------- Klikbare status badge ----------
                 if st.button(
@@ -481,7 +482,7 @@ def page_kaart():
     st.caption(f"{count_shown} van {count_total} huizen met postcode zichtbaar")
 
     m = render_map(filtered, height=600)
-    st_folium(m, use_container_width=True, height=600)
+    st_folium(m, use_container_width=True, height=600, returned_objects=[])
 
 
 def page_archief():
@@ -586,7 +587,7 @@ def page_archief():
 
         </a>
         """
-        components.html(card_html, height=140, scrolling=False)
+        st.markdown(card_html, unsafe_allow_html=True)
 # -----------------------------
 # MAIN APP
 # -----------------------------
