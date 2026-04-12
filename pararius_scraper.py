@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from pypararius import Pararius
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderRateLimited
+from notifications import send_new_listings_email
 
 load_dotenv()
 
@@ -105,6 +106,7 @@ def main():
     listings = fetch_pararius_listings()
 
     new_count = 0
+    new_houses = []
 
     for i, listing in enumerate(listings):
         listing_id = f"pararius_{listing.id}"
@@ -122,9 +124,11 @@ def main():
         house_data = transform_listing(full)
         print("Inserting new house:", house_data)
         supabase.table("houses").insert(house_data).execute()
+        new_houses.append(house_data)
         new_count += 1
 
     print(f"Inserted {new_count} new houses.")
+    send_new_listings_email(new_houses, "Pararius")
 
 
 if __name__ == "__main__":

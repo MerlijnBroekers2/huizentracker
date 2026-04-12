@@ -6,4 +6,5 @@ pypararius
 staticmap
 Pillow
 geopy
+resend
 datetime
