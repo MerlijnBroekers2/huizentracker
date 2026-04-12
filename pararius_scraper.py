@@ -93,7 +93,7 @@ def transform_listing(listing) -> dict:
         "postcode": postcode,
         "lat": lat,
         "lng": lng,
-        "status": "nieuw",
+        "status": "new",
     }
 
 

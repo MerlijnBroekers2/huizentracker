@@ -13,15 +13,11 @@ st.set_page_config(layout="wide")
 
 st.markdown("""
 <style>
-
-/* Maak kolommen dichter bij elkaar */
 .block-container {
     padding-top: 2rem;
     padding-left: 2rem;
     padding-right: 2rem;
 }
-
-/* Maak kaarten compacter */
 .kanban-card {
     background-color: #111827;
     padding: 12px;
@@ -29,21 +25,15 @@ st.markdown("""
     margin-bottom: 12px;
     border: 1px solid #2D3748;
 }
-
-/* Titel kleiner */
 .kanban-title {
     font-size: 18px;
     font-weight: 600;
     margin-bottom: 6px;
 }
-
-/* Kleine tekst */
 .kanban-meta {
     font-size: 14px;
     margin-bottom: 4px;
 }
-
-/* Status badge */
 .status-badge {
     font-size: 12px;
     padding: 4px 8px;
@@ -52,7 +42,6 @@ st.markdown("""
     display: inline-block;
     margin-bottom: 8px;
 }
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -68,39 +57,37 @@ key = os.getenv("SUPABASE_KEY")
 supabase = create_client(url, key)
 
 STATUS_OPTIONS = [
-    "nieuw",
-    "niet geïnteresseerd",
+    "new",
+    "not interested",
     "potential",
-    "bericht gestuurd",
-    "bezichtiging gepland",
-    "bezichtiging geweest",
-    "geen bezichtiging plek",
-    "niet geboden",
-    "bod gedaan",
-    "bod niet geaccepteerd",
-    "bod geaccepteerd"
+    "message sent",
+    "viewing planned",
+    "viewing done",
+    "no viewing available",
+    "not applied",
+    "applied",
+    "application rejected",
 ]
 
 STATUS_OPTIONS_NEW = [
-    "niet geïnteresseerd",
+    "not interested",
     "potential",
-    "bericht gestuurd",
+    "message sent",
 ]
 
-ARCHIVE_STATUSES = {"niet geïnteresseerd", "niet geboden", "bod niet geaccepteerd"}
+ARCHIVE_STATUSES = {"not interested", "not applied", "application rejected"}
 
 MAP_CENTER_LNG = 4.9041
 MAP_CENTER_LAT = 52.3676
 MAP_ZOOM = 13
 
 STATUS_GROUPS = {
-    "🆕 Nieuw": ["nieuw"],
-    "✨ Potentials": ["potential"],
-    "👀 Bezichtiging": ["bezichtiging gepland", "bericht gestuurd"],
-    "🤔 To bied or not": ["bezichtiging geweest"],
-    "💰 Bieden": ["bod gedaan"],
-    "🏆 JAVA PALACE": ["bod geaccepteerd"],
-    "📦 Archief": list(ARCHIVE_STATUSES),
+    "New": ["new"],
+    "Potential": ["potential"],
+    "Viewing": ["viewing planned", "message sent"],
+    "Decide": ["viewing done"],
+    "Applied": ["applied"],
+    "Archive": list(ARCHIVE_STATUSES),
 }
 
 
@@ -124,47 +111,39 @@ def get_all_houses():
 
 def status_color(status):
     colors = {
-        "nieuw": "#28FE02",
+        "new": "#28FE02",
         "potential": "#FACC15",
-        "bericht gestuurd": "#F63BF3",
-        "bezichtiging gepland": "#FF9900",
-        "bezichtiging geweest": "#0BD2F5",
-        "bod gedaan": "#3B3EF6",
-        "bod geaccepteerd": "#22C55E",
-        "niet geïnteresseerd": "#EF4444",
-        "niet geboden": "#F17878",
-        "geen bezichtiging plek": "#A30909",
-        "bod niet geaccepteerd": "#A30909",
+        "message sent": "#F63BF3",
+        "viewing planned": "#FF9900",
+        "viewing done": "#0BD2F5",
+        "applied": "#3B3EF6",
+        "not interested": "#EF4444",
+        "not applied": "#F17878",
+        "no viewing available": "#A30909",
+        "application rejected": "#A30909",
     }
-    return colors.get(status, "white")
+    return colors.get(status, "#9CA3AF")
 
-# ---------- Sorting rule for bezichtiging ----------
-def bezichtiging_sort_key(status):
+
+def viewing_sort_key(status):
     priority = {
-        "bezichtiging gepland": 0,
-        "bericht gestuurd": 1,
-        "bezichtiging geweest": 2
+        "viewing planned": 0,
+        "message sent": 1,
     }
     return priority.get(status, 99)
 
-def nieuw_sort_key(status):
+
+def archive_sort_key(status):
     priority = {
-        "potential": 0,
-        "nieuw": 1
+        "application rejected": 0,
+        "not applied": 1,
+        "no viewing available": 2,
+        "not interested": 3,
     }
     return priority.get(status, 99)
 
-def afgevallen_sort_key(status):
-    priority = {
-        "bod niet geaccepteerd": 0,
-        "niet geboden": 1,
-        "geen bezichtiging plek": 2,
-        "niet geïnteresseerd": 3,
-    }
-    return priority.get(status, 99)
 
 def _lonlat_to_pixel(lng, lat, width, height, tile_size=256):
-    """Convert lng/lat to pixel coordinates on the fixed Amsterdam map."""
     def to_tile(lon, lat_deg, z):
         x = (lon + 180) / 360 * (2 ** z)
         lat_r = math.radians(lat_deg)
@@ -180,11 +159,6 @@ def _lonlat_to_pixel(lng, lat, width, height, tile_size=256):
 
 @st.cache_data(ttl=300)
 def render_static_map(pin_data, width=1400, height=850, show_numbers=True):
-    """
-    Render a static PNG map with colored pins.
-    pin_data: tuple of (num, lat, lng, color) — must be a tuple for caching.
-    Returns PNG bytes.
-    """
     m = StaticMap(width, height)
     for num, lat, lng, color in pin_data:
         m.add_marker(CircleMarker((lng, lat), color, 22))
@@ -211,74 +185,72 @@ def render_static_map(pin_data, width=1400, height=850, show_numbers=True):
     image.save(buf, format="PNG")
     return buf.getvalue()
 
+
 # -----------------------------
-# PAGE 1 — Nieuwe huizen
+# PAGE 1 — New listings
 # -----------------------------
 def page_new_houses():
     houses = supabase.table("houses") \
         .select("*") \
-        .eq("status", "nieuw") \
+        .eq("status", "new") \
         .execute().data
-    
+
     count = len(houses) if houses else 0
 
-    st.title(f"🆕 Nieuwe Huizen ({count})")
+    st.title(f"New Listings ({count})")
 
     if not houses:
-        st.info("Geen nieuwe huizen gevonden.")
+        st.info("No new listings found.")
         return
 
     for house in houses:
         st.divider()
 
         st.subheader(house["address"])
-        st.write(f"💰 € {house['price']}")
-        st.write(f"📏 {house['surface_m2']} m² · {house['bedrooms']} slaapkamers")
-        st.markdown(f"[🔗 Bekijk op Funda]({house['url']})")
+        st.write(f"€ {house['price']} / month")
+        st.write(f"{house['surface_m2']} m²  ·  {house['bedrooms']} bedrooms")
+        st.markdown(f"[View listing]({house['url']})")
 
-        # Status buttons below the card
-        st.markdown("**Status wijzigen:**")
+        st.markdown("**Move to:**")
 
         cols = st.columns(3, gap="small")
         for col, status in zip(cols, STATUS_OPTIONS_NEW):
             if col.button(
                 status,
                 key=f"{house['id']}_{status}",
-                help=f"Klik om status te wijzigen naar '{status}'",
                 use_container_width=True
             ):
                 update_status(house["id"], status)
-                st.toast(f"✅ Status bijgewerkt naar '{status}'", icon="✅")
+                st.cache_data.clear()
+                st.toast(f"Status updated to '{status}'")
                 st.rerun()
 
-        # Add some spacing below each card
-        st.write("")  # simple line break
+        st.write("")
 
 
 # -----------------------------
-# PAGE 2 — Dashboard overzicht
+# PAGE 2 — Kanban overview
 # -----------------------------
 if "editing_house" not in st.session_state:
     st.session_state.editing_house = None
-def page_overview():
-    st.title("🏗️ Kanban Overzicht")
 
-    # ---------- Global font fix ----------
+
+def page_overview():
+    st.title("Overview")
+
     st.markdown("""
     <style>
-    * {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
+    * { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     </style>
     """, unsafe_allow_html=True)
 
     data = get_all_houses()
 
     if not data:
-        st.info("Geen data beschikbaar.")
+        st.info("No data available.")
         return
 
-    with st.expander("🗺️ Kaart overzicht", expanded=False) as map_expander:
+    with st.expander("Map overview", expanded=False) as map_expander:
         if map_expander:
             mini_pins = []
             for house in data:
@@ -296,17 +268,13 @@ def page_overview():
     df = pd.DataFrame(data)
 
     kanban_columns = {
-        "✨ Potentials": ["potential"],
-        "👀 Bezichtiging": [
-            "bezichtiging gepland",
-            "bericht gestuurd",  
-        ],
-        "🤔 To bied or not to bied":[ "bezichtiging geweest"],
-        "💰 Bieden": ["bod gedaan"],
-        "🏆 JAVA PALACE": ["bod geaccepteerd"]
+        "Potential": ["potential"],
+        "Viewing": ["viewing planned", "message sent"],
+        "Decide": ["viewing done"],
+        "Applied": ["applied"],
     }
 
-    cols = st.columns([1,1,1,1,1], gap="small")
+    cols = st.columns([1, 1, 1, 1], gap="small")
 
     for col, (column_name, statuses) in zip(cols, kanban_columns.items()):
         with col:
@@ -314,23 +282,10 @@ def page_overview():
 
             filtered = df[df["status"].isin(statuses)]
 
-            # Sorting rules per column
-            if column_name == "👀 Bezichtiging":
+            if column_name == "Viewing":
                 filtered = filtered.sort_values(
                     by="status",
-                    key=lambda x: x.map(bezichtiging_sort_key)
-                )
-
-            elif column_name == "🆕 Nieuw":
-                filtered = filtered.sort_values(
-                    by="status",
-                    key=lambda x: x.map(nieuw_sort_key)
-                )
-            
-            elif column_name == "❌ Afgevallen":
-                filtered = filtered.sort_values(
-                    by="status",
-                    key=lambda x: x.map(afgevallen_sort_key)
+                    key=lambda x: x.map(viewing_sort_key)
                 )
 
             for _, house in filtered.iterrows():
@@ -341,125 +296,99 @@ def page_overview():
                 <a href="{house['url']}" target="_blank" style="text-decoration:none;">
                     <div style="
                         position: relative;
-                
                         background: rgba(255,255,255,0.55);
                         backdrop-filter: blur(14px);
                         -webkit-backdrop-filter: blur(14px);
-                
                         border-radius: 18px;
                         border: 1px solid rgba(229,231,235,0.6);
-                
                         padding: 16px;
-                
                         cursor: pointer;
                         transition: all 0.25s ease;
-                
-                        font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                         box-shadow: 0 4px 20px rgba(0,0,0,0.05);
                     "
                     onmouseover="this.style.transform='translateY(-4px)'"
                     onmouseout="this.style.transform='translateY(0px)'">
-                
-                        <!-- Status badge rechtsboven -->
+
                         <div style="
-                            position:absolute;
-                            top:12px;
-                            right:12px;
-                
-                            font-size:11px;
-                            font-weight:600;
-                
-                            padding:4px 8px;
-                            border-radius:8px;
-                
-                            background:{badge_color};
-                            color:black;
+                            position: absolute;
+                            top: 12px;
+                            right: 12px;
+                            font-size: 11px;
+                            font-weight: 600;
+                            padding: 4px 8px;
+                            border-radius: 8px;
+                            background: {badge_color};
+                            color: black;
                         ">
                             {house["status"]}
                         </div>
-                
+
                         <div style="
-                            font-size:16px;
-                            font-weight:600;
-                            margin-bottom:10px;
-                            margin-top:6px;
-                            color:#111827;
-                            line-height:1.35;
-                            padding-right:60px;
+                            font-size: 16px;
+                            font-weight: 600;
+                            margin-bottom: 10px;
+                            margin-top: 6px;
+                            color: #111827;
+                            line-height: 1.35;
+                            padding-right: 60px;
                         ">
                             {house["address"]}
                         </div>
-                
+
                         <div style="
-                            font-size:14px;
-                            color:#374151;
-                            line-height:1.4;
+                            font-size: 14px;
+                            color: #374151;
+                            line-height: 1.4;
                         ">
-                            💰 € {house["price"]} · 📏 {house["surface_m2"]} m² · {house["bedrooms"]} slpk
+                            € {house["price"]} / mo  ·  {house["surface_m2"]} m²  ·  {house["bedrooms"]} bd
                         </div>
-                
+
                     </div>
                 </a>
                 """
 
                 st.markdown(card_html, unsafe_allow_html=True)
 
-                # ---------- Klikbare status badge ----------
                 if st.button(
                     house["status"],
                     key=f"badge_{house['id']}",
-                    help="Klik om status te wijzigen"
+                    help="Click to change status"
                 ):
                     st.session_state.editing_house = house["id"]
 
-
-                # ---------- Popup status selector ----------
                 if st.session_state.editing_house == house["id"]:
-
                     new_status = st.selectbox(
-                        "Wijzig status",
+                        "Change status",
                         STATUS_OPTIONS,
                         index=STATUS_OPTIONS.index(house["status"]),
                         key=f"popup_status_{house['id']}"
                     )
 
-                    # Auto-save zonder flash rerun
                     if new_status != house["status"]:
-
                         update_status(house["id"], new_status)
-
-                        # Update session state lokaal zodat UI niet flasht
                         house["status"] = new_status
-
-                        st.toast("✅ Status opgeslagen", icon="✅")
-
+                        st.toast("Status saved")
                         st.session_state.editing_house = None
-
-                        # Auto-refresh page with fresh data
+                        st.cache_data.clear()
                         st.rerun()
-                # st.selectbox(
-                #     "",
-                #     STATUS_OPTIONS,
-                #     index=STATUS_OPTIONS.index(house["status"]),
-                #     key=f"kanban_{house['id']}",
-                #     label_visibility="collapsed"
-                # )
 
 
-def page_kaart():
-    st.title("🗺️ Kaart")
+# -----------------------------
+# PAGE 3 — Map
+# -----------------------------
+def page_map():
+    st.title("Map")
 
     houses = get_all_houses()
     if not houses:
-        st.info("Geen huizen beschikbaar.")
+        st.info("No listings available.")
         return
 
-    # ---- Sidebar filters ----
     st.sidebar.markdown("---")
     st.sidebar.markdown("**Filters**")
     selected_groups = st.sidebar.multiselect(
-        "Status groepen",
+        "Status groups",
         options=list(STATUS_GROUPS.keys()),
         default=list(STATUS_GROUPS.keys()),
     )
@@ -469,7 +398,6 @@ def page_kaart():
 
     filtered = [h for h in houses if h.get("status") in selected_statuses]
 
-    # Build numbered pin list + legend
     pin_data = []
     legend_rows = []
     for house in filtered:
@@ -491,21 +419,21 @@ def page_kaart():
         })
 
     count_total = len([h for h in houses if h.get("lat")])
-    st.caption(f"{len(pin_data)} van {count_total} huizen met postcode zichtbaar")
+    st.caption(f"{len(pin_data)} of {count_total} listings with location visible")
 
     if pin_data:
         img_bytes = render_static_map(tuple(pin_data), width=1400, height=900)
         st.image(img_bytes, use_container_width=True)
     else:
-        st.info("Geen huizen met postcode gevonden voor de geselecteerde filters.")
+        st.info("No listings with location data found for the selected filters.")
 
     if legend_rows:
-        st.markdown("### Legenda")
+        st.markdown("### Legend")
         header = st.columns([0.4, 2.5, 2, 1.2, 0.8, 0.5])
         header[0].markdown("**#**")
-        header[1].markdown("**Adres**")
+        header[1].markdown("**Address**")
         header[2].markdown("**Status**")
-        header[3].markdown("**Prijs**")
+        header[3].markdown("**Price**")
         header[4].markdown("**m²**")
         header[5].markdown("**Link**")
         st.divider()
@@ -529,129 +457,107 @@ def page_kaart():
             cols[5].markdown(f"[→]({row['url']})")
 
 
-def page_archief():
+# -----------------------------
+# PAGE 4 — Archive
+# -----------------------------
+def page_archive():
     data = get_all_houses()
-    
+
     df = pd.DataFrame(data)
 
     archive_status_priority = {
-        "bod niet geaccepteerd": 0,
-        "niet geboden": 1,
-        "niet geïnteresseerd": 2
+        "application rejected": 0,
+        "not applied": 1,
+        "not interested": 2,
     }
 
-    archive_statuses = list(archive_status_priority.keys())
-
-    df = df[df["status"].isin(archive_statuses)]
-    
+    df = df[df["status"].isin(archive_status_priority.keys())]
     count_archive = len(df) if not df.empty else 0
 
+    st.title(f"Archive ({count_archive})")
 
-    st.title(f"📦 Archief ({count_archive})")
-
-    if not data:
-        st.info("Geen data beschikbaar.")
+    if df.empty:
+        st.info("No archived listings.")
         return
 
-
-    # Sorting
     df["sort_key"] = df["status"].map(archive_status_priority)
     df = df.sort_values("sort_key")
 
-    # Status flag styling
-    def status_style(val):
-        return f"""
-        background:{status_color(val)};
-        padding:4px 8px;
-        border-radius:6px;
-        font-size:12px;
-        font-weight:600;
-        """
-
-    # Render list
     for _, row in df.iterrows():
 
         card_html = f"""
         <a href="{row['url']}" target="_blank" style="text-decoration:none;">
-
         <div style="
             background: rgba(255,255,255,0.55);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
-
-            border-radius:14px;
-            border:1px solid rgba(229,231,235,0.6);
-
-            padding:14px;
-            margin-bottom:12px;
-
-            cursor:pointer;
-            transition:all 0.25s ease;
-
-            font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-
-            box-shadow:0 4px 20px rgba(0,0,0,0.05);
+            border-radius: 14px;
+            border: 1px solid rgba(229,231,235,0.6);
+            padding: 14px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
         "
         onmouseover="this.style.transform='translateY(-3px)'"
         onmouseout="this.style.transform='translateY(0px)'">
 
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-
+            <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div style="
-                    font-size:16px;
-                    font-weight:600;
-                    color:#111827;
-                    line-height:1.35;
-                    padding-right:12px;
+                    font-size: 16px;
+                    font-weight: 600;
+                    color: #111827;
+                    line-height: 1.35;
+                    padding-right: 12px;
                 ">
                     {row["address"]}
                 </div>
-
                 <span style="
-                    background:{status_color(row['status'])};
-                    padding:4px 8px;
-                    border-radius:6px;
-                    font-size:11px;
-                    font-weight:600;
+                    background: {status_color(row['status'])};
+                    padding: 4px 8px;
+                    border-radius: 6px;
+                    font-size: 11px;
+                    font-weight: 600;
                 ">
                     {row["status"]}
                 </span>
-
             </div>
 
             <div style="
-                font-size:14px;
-                color:#374151;
-                margin-top:8px;
+                font-size: 14px;
+                color: #374151;
+                margin-top: 8px;
             ">
-                💰 € {row["price"]} · 📏 {row["surface_m2"]} m² · {row["bedrooms"]} slpk
+                € {row["price"]} / mo  ·  {row["surface_m2"]} m²  ·  {row["bedrooms"]} bd
             </div>
 
         </div>
-
         </a>
         """
         st.markdown(card_html, unsafe_allow_html=True)
+
+
 # -----------------------------
 # MAIN APP
 # -----------------------------
 
 def main():
-    st.sidebar.title("🏠 Huizen Tracker")
+    st.sidebar.title("Rental Tracker")
 
     page = st.sidebar.radio(
         "Navigation",
-        ["🆕 Nieuwe huizen", "📊 Overzicht", "🗺️ Kaart", "📦 Archief"]
+        ["New listings", "Overview", "Map", "Archive"]
     )
 
-    if page == "🆕 Nieuwe huizen":
+    if page == "New listings":
         page_new_houses()
-    elif page == "📊 Overzicht":
+    elif page == "Overview":
         page_overview()
-    elif page == "🗺️ Kaart":
-        page_kaart()
-    elif page == "📦 Archief":
-        page_archief()
+    elif page == "Map":
+        page_map()
+    elif page == "Archive":
+        page_archive()
 
 
 if __name__ == "__main__":

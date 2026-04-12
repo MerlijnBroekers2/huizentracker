@@ -135,7 +135,7 @@ def transform_listing(listing):
         "postcode": postcode,
         "lat": lat,
         "lng": lng,
-        "status": "nieuw"
+        "status": "new"
     }
 
 def main():
