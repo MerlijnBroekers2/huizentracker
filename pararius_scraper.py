@@ -69,6 +69,7 @@ def transform_listing(listing) -> dict:
         "surface_m2": listing.get("area"),
         "bedrooms": listing.get("bedrooms"),
         "url": listing["url"],
+        "postcode": listing.get("postcode"),
         "status": "nieuw",
     }
 

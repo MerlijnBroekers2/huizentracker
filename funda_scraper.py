@@ -111,6 +111,7 @@ def transform_listing(listing):
         "surface_m2": listing.get("living_area"),
         "bedrooms": listing.get("bedrooms"),
         "url": f"https://www.funda.nl{listing.get('detail_url')}",
+        "postcode": listing.get("postcode"),
         "status": "nieuw"
     }
 
@@ -166,7 +167,6 @@ def main():
         if listing.getID() in existing_ids:
             print("Filtered: Already exists in database")
             continue
-
 
         house_data = transform_listing(listing)
         print("Inserting new house:", house_data)
