@@ -90,6 +90,8 @@ STATUS_OPTIONS_NEW = [
     "bericht gestuurd",
 ]
 
+ARCHIVE_STATUSES = {"niet geïnteresseerd", "niet geboden", "bod niet geaccepteerd"}
+
 
 # -----------------------------
 # HELPERS
@@ -162,6 +164,59 @@ def geocode_postcode(postcode: str):
         return None
     except GeocoderTimedOut:
         return None
+
+def render_map(houses: list[dict], height: int = 600):
+    """Build and return a Folium map with all geocoded houses as pins."""
+    m = folium.Map(
+        location=[52.3676, 4.9041],
+        zoom_start=13,
+        tiles="OpenStreetMap"
+    )
+
+    for house in houses:
+        coords = geocode_postcode(house.get("postcode"))
+        if not coords:
+            continue
+
+        is_archived = house.get("status") in ARCHIVE_STATUSES
+        color = "#9CA3AF" if is_archived else status_color(house.get("status", ""))
+        radius = 6 if is_archived else 10
+
+        popup_html = f"""
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-width:200px;">
+            <div style="font-size:15px;font-weight:600;margin-bottom:6px;">{house.get("address","")}</div>
+            <div style="font-size:12px;color:#555;margin-bottom:8px;">
+                {house.get("neighbourhood") or ""}{" · " if house.get("neighbourhood") else ""}{house.get("city","Amsterdam")}
+            </div>
+            <div style="font-size:13px;margin-bottom:8px;">
+                💰 € {house.get("price","")} · 📏 {house.get("surface_m2","?")} m² · {house.get("bedrooms","?")} slpk
+            </div>
+            <span style="
+                background:{color};
+                color:{'#fff' if is_archived else '#000'};
+                font-size:11px;font-weight:600;
+                padding:3px 8px;border-radius:6px;
+                display:inline-block;margin-bottom:10px;
+            ">{house.get("status","")}</span><br>
+            <a href="{house.get("url","")}" target="_blank"
+               style="font-size:13px;color:#2563EB;text-decoration:none;">
+                Bekijk listing →
+            </a>
+        </div>
+        """
+
+        folium.CircleMarker(
+            location=coords,
+            radius=radius,
+            color=color,
+            fill=True,
+            fill_color=color,
+            fill_opacity=0.85 if not is_archived else 0.4,
+            popup=folium.Popup(popup_html, max_width=280),
+            tooltip=house.get("address", ""),
+        ).add_to(m)
+
+    return m
 
 # -----------------------------
 # PAGE 1 — Nieuwe huizen
