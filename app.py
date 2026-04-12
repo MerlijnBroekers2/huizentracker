@@ -94,6 +94,7 @@ MAP_CENTER_LAT = 52.3676
 MAP_ZOOM = 13
 
 STATUS_GROUPS = {
+    "🆕 Nieuw": ["nieuw"],
     "✨ Potentials": ["potential"],
     "👀 Bezichtiging": ["bezichtiging gepland", "bericht gestuurd"],
     "🤔 To bied or not": ["bezichtiging geweest"],
