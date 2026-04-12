@@ -598,16 +598,17 @@ def main():
 
     page = st.sidebar.radio(
         "Navigation",
-        ["🆕 Nieuwe huizen", "📊 Overzicht", "📦 Archief"]
+        ["🆕 Nieuwe huizen", "📊 Overzicht", "🗺️ Kaart", "📦 Archief"]
     )
 
-    if page.startswith("🆕"):
+    if page == "🆕 Nieuwe huizen":
         page_new_houses()
-    else:
-        if page == "📊 Overzicht":
-            page_overview()
-        elif page == "📦 Archief":
-            page_archief()
+    elif page == "📊 Overzicht":
+        page_overview()
+    elif page == "🗺️ Kaart":
+        page_kaart()
+    elif page == "📦 Archief":
+        page_archief()
 
 
 if __name__ == "__main__":
