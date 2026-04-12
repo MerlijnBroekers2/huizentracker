@@ -3,6 +3,7 @@ import json
 from supabase import create_client
 from dotenv import load_dotenv
 from funda import Funda
+from notifications import send_new_listings_email
 
 load_dotenv()
 
@@ -111,6 +112,7 @@ def transform_listing(listing):
         "surface_m2": listing.get("living_area"),
         "bedrooms": listing.get("bedrooms"),
         "url": f"https://www.funda.nl{listing.get('detail_url')}",
+        "postcode": listing.get("postcode"),
         "status": "nieuw"
     }
 
@@ -132,6 +134,7 @@ def main():
 
     new_count = 0
     list_count = 0
+    new_houses = []
 
     for listing in listings:
         print(f"Listing number {list_count}: {vars(listing)}")  # Print volledige listing data
@@ -167,13 +170,14 @@ def main():
             print("Filtered: Already exists in database")
             continue
 
-
         house_data = transform_listing(listing)
         print("Inserting new house:", house_data)
         supabase.table("houses").insert(house_data).execute()
+        new_houses.append(house_data)
         new_count += 1
 
     print(f"Inserted {new_count} new houses.")
+    send_new_listings_email(new_houses, "Funda")
 
 
 if __name__ == "__main__":
