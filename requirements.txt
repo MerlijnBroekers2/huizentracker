@@ -3,4 +3,7 @@ supabase
 python-dotenv
 pyfunda
 pypararius
+folium
+streamlit-folium
+geopy
 datetime
