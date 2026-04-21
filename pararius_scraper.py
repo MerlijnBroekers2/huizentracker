@@ -19,7 +19,7 @@ pararius = Pararius()
 # ---- CONFIG ----
 LOCATION = "amsterdam"
 PRICE_MIN = 1000
-PRICE_MAX = 4000
+PRICE_MAX = 3000
 AREA_MIN = 60
 BEDROOMS_MIN = 3
 MAX_PAGES = 2
